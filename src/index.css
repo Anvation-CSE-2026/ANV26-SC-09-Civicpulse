@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  
+  --color-cream: #F8F1E5;
+  --color-neo-green: #B7FF2A;
+  --color-neo-blue: #4C5CFF;
+  --color-neo-pink: #FF4F87;
+  --color-neo-yellow: #FFD83D;
+  --color-neo-success: #00D66B;
+  --color-neo-black: #050505;
+  --color-neo-white: #FFFFFF;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #F8F1E5;
+  color: #050505;
+  overflow-x: hidden;
+}
+
+/* Neo-brutalist custom utilities */
+.neo-border {
+  border: 3px solid #050505;
+}
+
+.neo-border-sm {
+  border: 2px solid #050505;
+}
+
+.neo-shadow {
+  box-shadow: 5px 5px 0 #050505;
+}
+
+.neo-shadow-sm {
+  box-shadow: 3px 3px 0 #050505;
+}
+
+.neo-shadow-lg {
+  box-shadow: 7px 7px 0 #050505;
+}
+
+.neo-box {
+  border: 3px solid #050505;
+  box-shadow: 5px 5px 0 #050505;
+  background-color: #FFFFFF;
+}
+
+.neo-btn {
+  border: 3px solid #050505;
+  box-shadow: 4px 4px 0 #050505;
+  transition: all 0.1s ease-in-out;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.neo-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 #050505;
+}
+
+.neo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #050505;
+}
+
+/* Pulsing animation for critical markers */
+@keyframes critical-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 79, 135, 0.8), 3px 3px 0 #050505;
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 79, 135, 0), 3px 3px 0 #050505;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 79, 135, 0), 3px 3px 0 #050505;
+  }
+}
+
+.critical-pulsing-marker {
+  animation: critical-pulse 1.8s infinite ease-in-out;
+}
+
+/* Custom Leaflet Map Neo-brutalist overrides */
+.leaflet-container {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  background-color: #e5e3df !important;
+  z-index: 10;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #FFFFFF !important;
+  border: 3px solid #050505 !important;
+  box-shadow: 5px 5px 0 #050505 !important;
+  border-radius: 0px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip-container {
+  display: none !important;
+}
+
+.leaflet-control-zoom a {
+  border: 2px solid #050505 !important;
+  background-color: #FFFFFF !important;
+  color: #050505 !important;
+  box-shadow: 2px 2px 0 #050505 !important;
+  border-radius: 0 !important;
+  font-weight: bold !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #B7FF2A !important;
+  color: #050505 !important;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F8F1E5;
+  border-left: 2px solid #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4C5CFF;
+}
