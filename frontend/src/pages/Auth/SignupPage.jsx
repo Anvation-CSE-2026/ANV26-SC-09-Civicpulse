@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { HeartHandshake, User, Building2, CheckCircle2, ArrowLeft, Mail, Lock, Phone, Sparkles } from 'lucide-react';
 
 export default function SignupPage() {
-  const { signup } = useAuth();
+  const { signup, isAuthenticated, role: currentRole } = useAuth();
   const navigate = useNavigate();
 
   const [fullName, setFullName] = useState('');
@@ -15,7 +15,15 @@ export default function SignupPage() {
   const [role, setRole] = useState('CITIZEN');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  // If already authenticated, redirect to the appropriate dashboard
+  useEffect(() => {
+    if (isAuthenticated) {
+      const isWorker = currentRole === 'ADMIN' || currentRole === 'MUNICIPAL' || currentRole === 'MUNICIPAL_WORKER';
+      navigate(isWorker ? '/admin' : '/citizen', { replace: true });
+    }
+  }, [isAuthenticated, currentRole, navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -29,8 +37,8 @@ export default function SignupPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters long.');
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
       return;
     }
 
@@ -39,17 +47,27 @@ export default function SignupPage() {
       return;
     }
 
-    const res = signup({
-      fullName,
-      email,
-      phone,
-      password,
-      role
-    });
+    try {
+      const res = await signup({
+        fullName,
+        email,
+        phone,
+        password,
+        role: role === 'MUNICIPAL_WORKER' ? 'ADMIN' : role
+      });
 
-    if (res.success) {
-      // Redirect to login with state message
-      navigate('/login', { state: { message: 'Account created successfully. Please login.' } });
+      if (res.success) {
+        if (res.autoLogin && res.user) {
+          const isWorker = res.user.role === 'ADMIN' || res.user.role === 'MUNICIPAL' || res.user.role === 'MUNICIPAL_WORKER';
+          navigate(isWorker ? '/admin' : '/citizen', { replace: true });
+        } else {
+          navigate('/login', { state: { message: 'Account created successfully. Please login.' } });
+        }
+      } else {
+        setErrorMessage(res.error || 'Signup failed.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Registration failed.');
     }
   };
 
@@ -214,7 +232,7 @@ export default function SignupPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-mono font-black text-xs uppercase text-[#050505] mb-1">
-                  PASSWORD (MIN 6 CHARS) *
+                  PASSWORD (MIN 8 CHARS) *
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />

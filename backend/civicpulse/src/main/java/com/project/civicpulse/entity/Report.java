@@ -36,6 +36,36 @@ public class Report {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
+    @Column(length = 100)
+    private String category;
+
+    @Column(length = 100)
+    private String issueType;
+
+    @Column(length = 255)
+    private String areaName;
+
+    private Double latitude;
+
+    private Double longitude;
+
+    private Integer severity;
+
+    @Builder.Default
+    @Column(nullable = false, length = 50)
+    private String status = "PENDING";
+
+    @Builder.Default
+    private Boolean hasImage = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String imageUrl;
+
+    private Integer evidenceConfidence;
+
+    @Column(columnDefinition = "TEXT")
+    private String severityFactors;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -47,6 +77,9 @@ public class Report {
     public void prePersist() {
         if (createdAt == null) {
             createdAt = Instant.now();
+        }
+        if (status == null || status.isBlank()) {
+            status = "PENDING";
         }
     }
 }

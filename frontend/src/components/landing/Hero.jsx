@@ -50,7 +50,7 @@ export default function Hero() {
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <button
-              onClick={() => handleAction(role === 'MUNICIPAL_WORKER' ? '/admin' : '/citizen')}
+              onClick={() => handleAction((role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL') ? '/admin' : '/citizen')}
               className="px-6 py-3.5 bg-[#FF4F87] text-white border-3 border-[#050505] shadow-[5px_5px_0_#050505] font-display font-black text-sm uppercase tracking-wider hover:bg-[#ff3574] hover:shadow-[7px_7px_0_#050505] active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_#050505] transition-all cursor-pointer flex items-center gap-2"
             >
               <span>REPORT AN ISSUE</span>

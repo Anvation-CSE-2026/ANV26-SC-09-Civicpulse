@@ -53,7 +53,7 @@ export default function ReportModal({
     setAiAnalysis(result);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !description) {
       alert("Please fill in the title and description.");
@@ -78,7 +78,7 @@ export default function ReportModal({
       status: 'PENDING',
       reportCount: 1,
       hasImage: !!imagePreview,
-      imageUrl: imagePreview || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80",
+      imageUrl: (imagePreview && !imagePreview.startsWith('data:image')) ? imagePreview : (imagePreview ? "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80" : null),
       evidenceConfidence: aiAnalysis ? aiAnalysis.confidence : 88,
       severityFactors: {
         mlEvidence: aiAnalysis ? aiAnalysis.evidenceWeight : 25,
@@ -89,14 +89,18 @@ export default function ReportModal({
       }
     };
 
-    onSubmitReport(newReportData);
-    onClose();
+    try {
+      await onSubmitReport(newReportData);
+      onClose();
 
-    // Reset Form
-    setTitle('');
-    setDescription('');
-    setImagePreview(null);
-    setAiAnalysis(null);
+      // Reset Form
+      setTitle('');
+      setDescription('');
+      setImagePreview(null);
+      setAiAnalysis(null);
+    } catch (err) {
+      alert(err.message || 'Failed to submit report. Please try again.');
+    }
   };
 
   return (

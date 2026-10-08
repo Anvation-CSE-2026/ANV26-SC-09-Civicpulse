@@ -1,29 +1,39 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { HeartHandshake, ShieldCheck, ArrowRight, User, Building2, Key, Mail, Lock, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, quickDemoLogin } = useAuth();
+  const { login, quickDemoLogin, isAuthenticated, role } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [email, setEmail] = useState('citizen@civicpulse.com');
-  const [password, setPassword] = useState('citizen123');
+  const [email, setEmail] = useState('jane.citizen@example.com');
+  const [password, setPassword] = useState('CitizenPass123!');
   const [selectedRole, setSelectedRole] = useState('CITIZEN');
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState(location.state?.message || '');
 
-  const handleRoleSelect = (role) => {
-    setSelectedRole(role);
-    if (role === 'CITIZEN') {
-      setEmail('citizen@civicpulse.com');
-      setPassword('citizen123');
+  // If already authenticated, redirect to appropriate dashboard immediately
+  useEffect(() => {
+    if (isAuthenticated) {
+      const isWorker = role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
+      navigate(isWorker ? '/admin' : '/citizen', { replace: true });
+    }
+  }, [isAuthenticated, role, navigate]);
+
+  const handleRoleSelect = (roleName) => {
+    setSelectedRole(roleName);
+    if (roleName === 'CITIZEN') {
+      setEmail('jane.citizen@example.com');
+      setPassword('CitizenPass123!');
     } else {
-      setEmail('admin@civicpulse.gov');
-      setPassword('admin123');
+      setEmail('admin@civicpulse.local');
+      setPassword('AdminPass123!');
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     if (!email || !password) {
@@ -31,22 +41,29 @@ export default function LoginPage() {
       return;
     }
 
-    const res = login(email, password, selectedRole);
-    if (res.success) {
-      if (res.user.role === 'MUNICIPAL_WORKER') {
-        navigate('/admin');
+    try {
+      const res = await login(email, password);
+      if (res.success) {
+        const isWorker = res.user.role === 'ADMIN' || res.user.role === 'MUNICIPAL_WORKER' || res.user.role === 'MUNICIPAL';
+        navigate(isWorker ? '/admin' : '/citizen', { replace: true });
       } else {
-        navigate('/citizen');
+        setErrorMessage(res.error || 'Invalid email or password.');
       }
+    } catch (err) {
+      setErrorMessage(err.message || 'Login failed. Please check credentials.');
     }
   };
 
-  const handleQuickLogin = (role) => {
-    const user = quickDemoLogin(role);
-    if (user.role === 'MUNICIPAL_WORKER') {
-      navigate('/admin');
-    } else {
-      navigate('/citizen');
+  const handleQuickLogin = async (targetRole) => {
+    setErrorMessage('');
+    try {
+      const user = await quickDemoLogin(targetRole);
+      if (user) {
+        const isWorker = user.role === 'ADMIN' || user.role === 'MUNICIPAL_WORKER' || user.role === 'MUNICIPAL';
+        navigate(isWorker ? '/admin' : '/citizen', { replace: true });
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Quick login failed.');
     }
   };
 
@@ -115,6 +132,14 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+
+          {/* Success Banner if redirected from registration */}
+          {successMessage && (
+            <div className="p-3 bg-[#B7FF2A] text-[#050505] border-2 border-[#050505] font-mono font-bold text-xs shadow-[2px_2px_0_#050505] flex items-center justify-between">
+              <span>✓ {successMessage}</span>
+              <button type="button" onClick={() => setSuccessMessage('')} className="font-black cursor-pointer">✕</button>
+            </div>
+          )}
 
           {/* Error Banner if any */}
           {errorMessage && (

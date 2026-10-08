@@ -29,7 +29,7 @@ export default function CTASection() {
 
         <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
           <button
-            onClick={() => handleAction(role === 'MUNICIPAL_WORKER' ? '/admin' : '/citizen')}
+            onClick={() => handleAction((role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL') ? '/admin' : '/citizen')}
             className="px-8 py-4 bg-[#FF4F87] text-white border-3 border-[#050505] shadow-[5px_5px_0_#050505] font-display font-black text-base uppercase hover:bg-[#ff3574] active:translate-x-1 active:translate-y-1 transition-all cursor-pointer flex items-center gap-2"
           >
             <span>REPORT AN ISSUE</span>

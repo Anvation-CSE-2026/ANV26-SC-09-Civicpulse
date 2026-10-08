@@ -53,10 +53,15 @@ export default function CitizenLayout({ tab = 'home' }) {
     }, 4000);
   };
 
-  const handleCreateReport = (newReportData) => {
-    const { reportId } = addReport(newReportData, currentUser?.name);
-    showToast(`🎉 Report #${reportId} submitted! +25 Civic Points awarded.`);
-    setSelectedLocation(null);
+  const handleCreateReport = async (newReportData) => {
+    try {
+      const { reportId } = await addReport(newReportData, currentUser?.name);
+      showToast(`Report #${reportId} submitted! +25 Civic Points awarded.`);
+      setSelectedLocation(null);
+    } catch (err) {
+      showToast(`Error submitting report: ${err.message}`, '#FF4F87');
+      throw err;
+    }
   };
 
   const stats = {

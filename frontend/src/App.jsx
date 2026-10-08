@@ -22,6 +22,15 @@ import AdminAiEnginePage from './pages/Admin/AdminAiEnginePage';
 import AdminSettingsPage from './pages/Admin/AdminSettingsPage';
 import AdminCitizensPage from './pages/Admin/AdminCitizensPage';
 
+function RoleDashboardRedirect() {
+  const { isAuthenticated, role } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  const isWorker = role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
+  return <Navigate to={isWorker ? '/admin' : '/citizen'} replace />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -34,6 +43,13 @@ export default function App() {
             {/* Authentication Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+
+            {/* Smart Dashboard Route (redirects by role or to login) */}
+            <Route path="/dashboard" element={<RoleDashboardRedirect />} />
+            <Route path="/citizen/dashboard" element={<Navigate to="/citizen" replace />} />
+            <Route path="/municipal" element={<Navigate to="/admin" replace />} />
+            <Route path="/municipal/dashboard" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
 
             {/* Citizen Protected Routes */}
             <Route
@@ -49,12 +65,13 @@ export default function App() {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute role="MUNICIPAL_WORKER">
+                <ProtectedRoute role="ADMIN">
                   <AdminLayout />
                 </ProtectedRoute>
               }
             >
               <Route index element={<AdminDashboardPage />} />
+              <Route path="dashboard" element={<AdminDashboardPage />} />
               <Route path="incidents" element={<AdminIncidentsPage />} />
               <Route path="map" element={<AdminMapPage />} />
               <Route path="resources" element={<AdminResourcesPage />} />

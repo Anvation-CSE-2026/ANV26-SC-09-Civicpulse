@@ -9,7 +9,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleDashboardClick = () => {
-    if (role === 'MUNICIPAL_WORKER') {
+    if (role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL') {
       navigate('/admin');
     } else {
       navigate('/citizen');
