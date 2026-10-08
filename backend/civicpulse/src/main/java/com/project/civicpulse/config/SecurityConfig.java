@@ -29,7 +29,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Value("${app.frontend-url}")
+    @Value("${app.frontend-url:http://localhost:5173}")
     private String frontendUrl;
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
