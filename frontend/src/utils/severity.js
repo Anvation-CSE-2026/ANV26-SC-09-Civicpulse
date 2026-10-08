@@ -56,7 +56,8 @@ export function getSeverityInfo(score) {
 }
 
 export function getStatusStyle(status) {
-  switch (status?.toUpperCase()) {
+  const norm = (status || '').toUpperCase().replace('_', ' ');
+  switch (norm) {
     case 'IN PROGRESS':
       return {
         bg: 'bg-[#4C5CFF]',

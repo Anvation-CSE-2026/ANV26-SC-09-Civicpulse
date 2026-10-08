@@ -90,6 +90,26 @@ public class ReportService {
         throw new AccessDeniedException("You do not have permission to access this report");
     }
 
+    @Transactional
+    public ReportResponse updateReportStatus(Long reportId, String status, String assignedTeam) {
+        Report report = reportRepository.findById(reportId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found with ID: " + reportId));
+
+        if (status != null && !status.isBlank()) {
+            report.setStatus(status.trim().toUpperCase());
+        }
+
+        if (assignedTeam != null && !assignedTeam.isBlank()) {
+            report.setAssignedTeam(assignedTeam.trim());
+            if (report.getStatus() == null || "PENDING".equalsIgnoreCase(report.getStatus())) {
+                report.setStatus("IN_PROGRESS");
+            }
+        }
+
+        Report saved = reportRepository.save(report);
+        return mapToResponse(saved);
+    }
+
     private ReportResponse mapToResponse(Report report) {
         Map<String, Object> factors = null;
         if (report.getSeverityFactors() != null && !report.getSeverityFactors().isBlank()) {
@@ -113,6 +133,7 @@ public class ReportService {
             .longitude(report.getLongitude() != null ? report.getLongitude() : 77.5946)
             .severity(report.getSeverity() != null ? report.getSeverity() : 65)
             .status(report.getStatus() != null ? report.getStatus() : "PENDING")
+            .assignedTeam(report.getAssignedTeam())
             .hasImage(report.getHasImage() != null ? report.getHasImage() : false)
             .imageUrl(report.getImageUrl())
             .evidenceConfidence(report.getEvidenceConfidence() != null ? report.getEvidenceConfidence() : 88)

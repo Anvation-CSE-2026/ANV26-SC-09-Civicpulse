@@ -25,6 +25,7 @@ public class ReportResponse {
     private Double longitude;
     private Integer severity;
     private String status;
+    private String assignedTeam;
     private Boolean hasImage;
     private String imageUrl;
     private Integer evidenceConfidence;

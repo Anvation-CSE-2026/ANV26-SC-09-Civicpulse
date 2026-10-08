@@ -20,6 +20,9 @@ function mapBackendReportToUi(report) {
   else if (hours > 0) timeAgo = `${hours}H AGO`;
   else if (mins > 0) timeAgo = `${mins}M AGO`;
 
+  const rawStatus = (report.status || 'PENDING').toUpperCase();
+  const statusNorm = rawStatus === 'IN_PROGRESS' ? 'IN PROGRESS' : rawStatus;
+
   return {
     id: report.id,
     displayId: `R-${report.id}`,
@@ -33,9 +36,10 @@ function mapBackendReportToUi(report) {
     areaName: report.areaName || 'Bengaluru',
     latitude: report.latitude || 12.9716,
     longitude: report.longitude || 77.5946,
-    status: report.status || 'PENDING',
+    status: statusNorm,
+    assignedTeam: report.assignedTeam || null,
     timeAgo,
-    updatesCount: report.status === 'PENDING' ? 'UNDER REVIEW' : '1 UPDATE',
+    updatesCount: statusNorm === 'PENDING' ? 'UNDER REVIEW' : (statusNorm === 'IN PROGRESS' ? 'DISPATCHED' : 'RESOLVED'),
     severity: report.severity || 65,
     hasImage: !!report.hasImage,
     imageUrl: report.imageUrl || null,
@@ -43,7 +47,7 @@ function mapBackendReportToUi(report) {
     severityFactors: report.severityFactors || {},
     createdAt: report.createdAt,
     userId: report.userId,
-    userName: report.userName
+    userName: report.userName || 'Citizen'
   };
 }
 
@@ -51,7 +55,7 @@ export function IncidentProvider({ children }) {
   const { currentUser, isAuthenticated, role } = useAuth();
 
   const [incidents, setIncidents] = useState(INITIAL_INCIDENTS);
-  const [userReports, setUserReports] = useState(INITIAL_USER_REPORTS);
+  const [userReports, setUserReports] = useState([]);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [resources, setResources] = useState(INITIAL_RESOURCES);
   const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
@@ -59,35 +63,41 @@ export function IncidentProvider({ children }) {
   const [adminStats, setAdminStats] = useState(INITIAL_ADMIN_STATS);
 
   // Fetch real user reports from PostgreSQL when authenticated
-  useEffect(() => {
+  const fetchReports = async () => {
     const token = getStoredToken();
     if (!token || !isAuthenticated) return;
 
-    let isMounted = true;
-    const fetchReports = async () => {
-      try {
-        const isAdmin = role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
-        const reports = isAdmin ? await apiService.getAllReports() : await apiService.getMyReports();
-        if (isMounted && Array.isArray(reports)) {
-          const mapped = reports.map(mapBackendReportToUi);
-          setUserReports(mapped);
+    try {
+      const isAdmin = role === 'ADMIN';
+      const reports = isAdmin ? await apiService.getAllReports() : await apiService.getMyReports();
+      if (Array.isArray(reports)) {
+        const mapped = reports.map(mapBackendReportToUi);
+        setUserReports(mapped);
 
-          // If there are real backend reports, add them to the incidents map view
-          if (mapped.length > 0) {
-            setIncidents(prev => {
-              const existingIds = new Set(mapped.map(m => m.id));
-              const nonOverlapping = prev.filter(inc => !existingIds.has(inc.id));
-              return [...mapped, ...nonOverlapping];
-            });
-          }
+        // Merge real backend reports into the incidents view
+        if (mapped.length > 0) {
+          setIncidents(prev => {
+            const mappedIds = new Set(mapped.map(m => String(m.id)));
+            const nonOverlapping = prev.filter(inc => !mappedIds.has(String(inc.id)));
+            return [...mapped, ...nonOverlapping];
+          });
         }
-      } catch (err) {
-        console.warn('Backend reports could not be loaded; falling back to demo reports:', err?.message || err);
       }
-    };
+    } catch (err) {
+      console.warn('Backend reports could not be loaded:', err?.message || err);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUserReports([]);
+      return;
+    }
 
     fetchReports();
-    return () => { isMounted = false; };
+    // Poll every 4 seconds to sync citizen & admin views across separate browser sessions
+    const interval = setInterval(fetchReports, 4000);
+    return () => clearInterval(interval);
   }, [isAuthenticated, role, currentUser]);
 
   // Helper to add activity log
@@ -167,12 +177,25 @@ export function IncidentProvider({ children }) {
   };
 
   // Dispatch incident team
-  const dispatchIncident = (incidentId, teamName = 'BBMP Rapid Action Team') => {
+  const dispatchIncident = async (incidentId, teamName = 'Road Maintenance Unit') => {
+    try {
+      const numericId = Number(incidentId);
+      if (!isNaN(numericId) && numericId > 0) {
+        await apiService.updateReportStatus(numericId, {
+          status: 'IN_PROGRESS',
+          assignedTeam: teamName
+        });
+      }
+    } catch (err) {
+      console.error('Failed to dispatch via backend:', err);
+    }
+
     setIncidents(prev => prev.map(inc => {
-      if (inc.id === incidentId) {
+      if (String(inc.id) === String(incidentId)) {
         return {
           ...inc,
           status: 'IN PROGRESS',
+          assignedTeam: teamName,
           updatedAt: 'Just now',
           timeline: [
             { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: `${teamName} dispatched to location` },
@@ -184,8 +207,8 @@ export function IncidentProvider({ children }) {
     }));
 
     setUserReports(prev => prev.map(rep => {
-      if (rep.incidentId === incidentId || rep.id === incidentId) {
-        return { ...rep, status: 'IN PROGRESS', updatesCount: 'DISPATCHED' };
+      if (String(rep.incidentId) === String(incidentId) || String(rep.id) === String(incidentId)) {
+        return { ...rep, status: 'IN PROGRESS', assignedTeam: teamName, updatesCount: 'DISPATCHED' };
       }
       return rep;
     }));
@@ -195,9 +218,20 @@ export function IncidentProvider({ children }) {
   };
 
   // Resolve incident
-  const resolveIncident = (incidentId) => {
+  const resolveIncident = async (incidentId) => {
+    try {
+      const numericId = Number(incidentId);
+      if (!isNaN(numericId) && numericId > 0) {
+        await apiService.updateReportStatus(numericId, {
+          status: 'RESOLVED'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to resolve via backend:', err);
+    }
+
     setIncidents(prev => prev.map(inc => {
-      if (inc.id === incidentId) {
+      if (String(inc.id) === String(incidentId)) {
         return {
           ...inc,
           status: 'RESOLVED',
@@ -212,7 +246,7 @@ export function IncidentProvider({ children }) {
     }));
 
     setUserReports(prev => prev.map(rep => {
-      if (rep.incidentId === incidentId || rep.id === incidentId) {
+      if (String(rep.incidentId) === String(incidentId) || String(rep.id) === String(incidentId)) {
         return { ...rep, status: 'RESOLVED', updatesCount: 'RESOLVED' };
       }
       return rep;
@@ -295,6 +329,7 @@ export function IncidentProvider({ children }) {
         addReport,
         dispatchIncident,
         resolveIncident,
+        refreshReports: fetchReports,
         updateResourceQuantity,
         recalculatePriorities,
         simulateNewSevereReport,

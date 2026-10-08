@@ -43,6 +43,7 @@ export async function request(endpoint, options = {}) {
       headers
     });
   } catch (networkError) {
+    console.error(`[API Network Error] ${options.method || 'GET'} ${url}:`, networkError);
     throw new Error('Backend unavailable. Please ensure the server is running on ' + API_BASE_URL);
   }
 
@@ -53,13 +54,21 @@ export async function request(endpoint, options = {}) {
         const errorJson = await response.json();
         errorMsg = errorJson.message || errorJson.error || errorMsg;
       } catch (_) {}
+      console.error(`[API 401] ${endpoint}:`, errorMsg);
       throw new Error(errorMsg);
     }
-    throw new Error('Unauthorized or session expired');
+    console.error(`[API 401] ${endpoint}: Session expired`);
+    throw new Error('Your session has expired. Please log in again.');
   }
 
   if (response.status === 403) {
-    throw new Error('You do not have permission to access this resource.');
+    console.error(`[API 403] ${endpoint}: Access Denied`);
+    throw new Error('You are not authorized to perform this action.');
+  }
+
+  if (response.status === 500) {
+    console.error(`[API 500] ${endpoint}: Internal Server Error`);
+    throw new Error('Server error. Please try again.');
   }
 
   if (!response.ok) {
@@ -67,10 +76,12 @@ export async function request(endpoint, options = {}) {
     try {
       const errorJson = await response.json();
       errorMsg = errorJson.message || errorJson.error || errorMsg;
+      console.error(`[API ${response.status}] ${endpoint}:`, errorJson);
     } catch (_) {
       try {
         const text = await response.text();
         if (text) errorMsg = text;
+        console.error(`[API ${response.status}] ${endpoint}:`, text);
       } catch (__) {}
     }
     throw new Error(errorMsg);
@@ -131,6 +142,13 @@ export const apiService = {
   async getAllReports() {
     return request('/admin/reports', {
       method: 'GET'
+    });
+  },
+
+  async updateReportStatus(id, updateData) {
+    return request(`/admin/reports/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData)
     });
   },
 

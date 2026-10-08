@@ -8,9 +8,12 @@ export default function AdminIncidentsPage() {
   const [filterCat, setFilterCat] = useState('ALL');
   const [filterSev, setFilterSev] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [selectedTeams, setSelectedTeams] = useState({});
 
   const filtered = incidents.filter(i => {
-    const matchSearch = i.title.toLowerCase().includes(search.toLowerCase()) || i.id.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (i.title || '').toLowerCase().includes(search.toLowerCase()) || 
+      String(i.id).toLowerCase().includes(search.toLowerCase()) ||
+      (i.userName && i.userName.toLowerCase().includes(search.toLowerCase()));
     const matchCat = filterCat === 'ALL' || i.category === filterCat;
     const matchSev = filterSev === 'ALL' || getSeverityInfo(i.severity).level === filterSev;
     return matchSearch && matchCat && matchSev;
@@ -41,7 +44,7 @@ export default function AdminIncidentsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search incident title, ID or location..."
+            placeholder="Search incident title, ID or citizen name..."
             className="w-full pl-9 pr-3 py-2 bg-white border-2 border-[#050505] font-sans font-bold text-xs shadow-[2px_2px_0_#050505]"
           />
         </div>
@@ -79,25 +82,29 @@ export default function AdminIncidentsPage() {
             <thead>
               <tr className="bg-[#050505] text-white font-mono font-black text-xs uppercase border-b-4 border-[#050505]">
                 <th className="p-3.5">ID</th>
-                <th className="p-3.5">TITLE & LOCATION</th>
+                <th className="p-3.5">TITLE & CITIZEN</th>
                 <th className="p-3.5">CATEGORY</th>
                 <th className="p-3.5">SEVERITY</th>
                 <th className="p-3.5">STATUS</th>
-                <th className="p-3.5">REPORTS</th>
-                <th className="p-3.5 text-right">ACTIONS</th>
+                <th className="p-3.5">ASSIGNED TEAM</th>
+                <th className="p-3.5 text-right">DISPATCH / RESOLVE</th>
               </tr>
             </thead>
             <tbody className="font-mono text-xs font-bold divide-y-2 divide-[#050505]">
               {filtered.map((inc) => {
                 const sev = getSeverityInfo(inc.severity);
                 const statusStyle = getStatusStyle(inc.status);
+                const selectedTeam = selectedTeams[inc.id] || 'Road Maintenance Unit';
 
                 return (
                   <tr key={inc.id} className="hover:bg-[#FFD83D]/30 transition-colors bg-white">
                     <td className="p-3.5 font-black text-[#4C5CFF]">#{inc.id}</td>
                     <td className="p-3.5">
                       <p className="font-display font-black text-sm uppercase text-[#050505]">{inc.title}</p>
-                      <p className="text-[10px] text-gray-600">📍 {inc.areaName}</p>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-600 mt-0.5">
+                        <span>📍 {inc.areaName || 'Bengaluru'}</span>
+                        {inc.userName && <span className="text-[#4C5CFF] font-black">• By: {inc.userName}</span>}
+                      </div>
                     </td>
                     <td className="p-3.5">{inc.category}</td>
                     <td className="p-3.5">
@@ -110,20 +117,40 @@ export default function AdminIncidentsPage() {
                         {statusStyle.label}
                       </span>
                     </td>
-                    <td className="p-3.5 font-black text-sm">{inc.reportCount}</td>
+                    <td className="p-3.5 font-mono text-[11px]">
+                      {inc.assignedTeam ? (
+                        <span className="bg-[#B7FF2A] border border-[#050505] px-1.5 py-0.5 font-black text-[#050505]">
+                          {inc.assignedTeam}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 italic">Unassigned</span>
+                      )}
+                    </td>
                     <td className="p-3.5 text-right space-x-2">
-                      <button
-                        onClick={() => dispatchIncident(inc.id, 'BBMP Rapid Squad')}
-                        className="px-2.5 py-1 bg-[#4C5CFF] text-white border border-[#050505] shadow-[2px_2px_0_#050505] font-black text-[10px] uppercase hover:bg-[#3848e8]"
-                      >
-                        DISPATCH
-                      </button>
-                      <button
-                        onClick={() => resolveIncident(inc.id)}
-                        className="px-2.5 py-1 bg-[#00D66B] text-[#050505] border border-[#050505] shadow-[2px_2px_0_#050505] font-black text-[10px] uppercase hover:bg-[#00be5e]"
-                      >
-                        RESOLVE
-                      </button>
+                      <div className="inline-flex items-center gap-1.5">
+                        <select
+                          value={selectedTeam}
+                          onChange={(e) => setSelectedTeams(prev => ({ ...prev, [inc.id]: e.target.value }))}
+                          className="bg-white border-2 border-[#050505] px-1.5 py-1 text-[10px] font-mono font-bold"
+                        >
+                          <option value="Road Maintenance Unit">Road Maintenance Unit</option>
+                          <option value="BBMP Rapid Action Team">BBMP Rapid Action Team</option>
+                          <option value="Water & Drainage Unit">Water & Drainage Unit</option>
+                          <option value="Electrical Maintenance Unit">Electrical Maintenance Unit</option>
+                        </select>
+                        <button
+                          onClick={() => dispatchIncident(inc.id, selectedTeam)}
+                          className="px-2.5 py-1 bg-[#4C5CFF] text-white border-2 border-[#050505] shadow-[2px_2px_0_#050505] font-black text-[10px] uppercase hover:bg-[#3848e8] active:translate-x-0.5 active:translate-y-0.5"
+                        >
+                          DISPATCH
+                        </button>
+                        <button
+                          onClick={() => resolveIncident(inc.id)}
+                          className="px-2.5 py-1 bg-[#00D66B] text-[#050505] border-2 border-[#050505] shadow-[2px_2px_0_#050505] font-black text-[10px] uppercase hover:bg-[#00be5e] active:translate-x-0.5 active:translate-y-0.5"
+                        >
+                          RESOLVE
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

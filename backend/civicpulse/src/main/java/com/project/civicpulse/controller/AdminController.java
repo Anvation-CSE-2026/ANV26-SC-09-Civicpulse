@@ -30,6 +30,16 @@ public class AdminController {
         return ResponseEntity.ok(reportService.getAllReports());
     }
 
+    @PatchMapping("/reports/{id}/status")
+    public ResponseEntity<ReportResponse> updateReportStatus(
+        @PathVariable Long id,
+        @RequestBody Map<String, String> payload
+    ) {
+        String status = payload.get("status");
+        String assignedTeam = payload.get("assignedTeam");
+        return ResponseEntity.ok(reportService.updateReportStatus(id, status, assignedTeam));
+    }
+
     @GetMapping("/incidents")
     public ResponseEntity<List<Map<String, Object>>> getAllIncidents() {
         return ResponseEntity.ok(List.of(

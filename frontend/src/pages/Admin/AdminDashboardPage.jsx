@@ -39,8 +39,9 @@ export default function AdminDashboardPage() {
   // Selected Incident State (defaults to first incident)
   const [selectedId, setSelectedId] = useState(incidents[0]?.id || 'INC-2041');
   const [filterCategory, setFilterCategory] = useState('ALL');
+  const [selectedTeam, setSelectedTeam] = useState('Road Maintenance Unit');
 
-  const selectedIncident = incidents.find(i => i.id === selectedId) || incidents[0];
+  const selectedIncident = incidents.find(i => String(i.id) === String(selectedId)) || incidents[0];
   const severityInfo = selectedIncident ? getSeverityInfo(selectedIncident.severity) : getSeverityInfo(88);
   const statusStyle = selectedIncident ? getStatusStyle(selectedIncident.status) : getStatusStyle('PENDING');
   const breakdown = selectedIncident ? calculateSeverityBreakdown(selectedIncident) : { factors: [], total: 88 };
@@ -308,19 +309,32 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Recommendation Card (Section 15) */}
-              <div className="bg-[#FFD83D] border-3 border-[#050505] p-3 shadow-[3px_3px_0_#050505] space-y-1">
+              <div className="bg-[#FFD83D] border-3 border-[#050505] p-3 shadow-[3px_3px_0_#050505] space-y-1.5">
                 <span className="font-mono font-black text-[10px] uppercase text-[#050505] block">
-                  RECOMMENDED DEPLOYMENT:
+                  {selectedIncident.assignedTeam ? 'ASSIGNED FIELD UNIT:' : 'SELECT UNIT TO DISPATCH:'}
                 </span>
-                <p className="font-display font-black text-sm uppercase text-[#050505]">
-                  Repair Team A + Electrical Unit 2 + Traffic Police
-                </p>
+                {selectedIncident.assignedTeam ? (
+                  <p className="font-display font-black text-sm uppercase text-[#050505] bg-[#B7FF2A] px-2 py-1 border border-black inline-block">
+                    ✓ {selectedIncident.assignedTeam}
+                  </p>
+                ) : (
+                  <select
+                    value={selectedTeam}
+                    onChange={(e) => setSelectedTeam(e.target.value)}
+                    className="w-full bg-white border-2 border-[#050505] p-1.5 font-mono font-bold text-xs shadow-[2px_2px_0_#050505]"
+                  >
+                    <option value="Road Maintenance Unit">Road Maintenance Unit</option>
+                    <option value="BBMP Rapid Action Team">BBMP Rapid Action Team</option>
+                    <option value="Water & Drainage Unit">Water & Drainage Unit</option>
+                    <option value="Electrical Maintenance Unit">Electrical Maintenance Unit</option>
+                  </select>
+                )}
               </div>
 
               {/* Action Buttons (Section 16) */}
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
-                  onClick={() => dispatchIncident(selectedIncident.id, 'BBMP Stormwater Unit A')}
+                  onClick={() => dispatchIncident(selectedIncident.id, selectedIncident.assignedTeam || selectedTeam)}
                   className="py-2.5 bg-[#4C5CFF] text-white border-2 border-[#050505] shadow-[2px_2px_0_#050505] font-display font-black text-xs uppercase hover:bg-[#3848e8] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-1"
                 >
                   <ShieldAlert className="w-4 h-4" />

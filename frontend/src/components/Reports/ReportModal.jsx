@@ -55,8 +55,13 @@ export default function ReportModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !description) {
+    if (!title.trim() || !description.trim()) {
       alert("Please fill in the title and description.");
+      return;
+    }
+
+    if (description.trim().length < 10) {
+      alert("Description must be at least 10 characters long.");
       return;
     }
 
@@ -67,8 +72,8 @@ export default function ReportModal({
     const baseSeverity = aiAnalysis ? Math.min(95, 40 + (aiAnalysis.evidenceWeight || 25)) : 65;
 
     const newReportData = {
-      title: title.toUpperCase(),
-      description,
+      title: title.trim(),
+      description: description.trim(),
       category,
       issueType,
       areaName,
