@@ -55,8 +55,9 @@ public class User {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Builder.Default
     @Column(nullable = false)
-    private boolean enabled;
+    private boolean enabled = true;
 
     @Builder.Default
     @JsonIgnore
@@ -67,9 +68,6 @@ public class User {
     public void prePersist() {
         if (createdAt == null) {
             createdAt = Instant.now();
-        }
-        if (enabled == false) {
-            enabled = true;
         }
     }
 }
