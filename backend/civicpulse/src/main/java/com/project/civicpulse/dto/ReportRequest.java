@@ -28,12 +28,21 @@ public class ReportRequest {
     private String issueType;
 
     private String areaName;
+    private String ward;
 
     private Double latitude;
 
     private Double longitude;
 
     private Integer severity;
+
+    private Double rainfall;
+
+    private Double traffic;
+
+    private Integer population;
+
+    private String department;
 
     private String status;
 

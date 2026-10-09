@@ -103,6 +103,27 @@ export default function IncidentDetailsModal({
                   <span>{breakdown.total}</span>
                 </div>
               </div>
+
+              {/* Civic Context Box */}
+              {breakdown.context && (
+                <div className="pt-2 border-t border-gray-200 font-mono text-[10px]">
+                  <span className="font-bold text-gray-500 uppercase block mb-1">CIVIC CONTEXT:</span>
+                  <div className="grid grid-cols-3 gap-1">
+                    <div className="bg-[#F8F1E5] p-1 border border-gray-300">
+                      <span className="text-gray-500 block">Rainfall</span>
+                      <span className="font-bold text-[#050505]">{breakdown.context.rainfall}</span>
+                    </div>
+                    <div className="bg-[#F8F1E5] p-1 border border-gray-300">
+                      <span className="text-gray-500 block">Traffic</span>
+                      <span className="font-bold text-[#050505]">{breakdown.context.traffic}</span>
+                    </div>
+                    <div className="bg-[#F8F1E5] p-1 border border-gray-300">
+                      <span className="text-gray-500 block">Population</span>
+                      <span className="font-bold text-[#050505]">{breakdown.context.population}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* AI Image Evidence Section */}

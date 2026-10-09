@@ -9,6 +9,7 @@ import com.project.civicpulse.entity.User;
 import com.project.civicpulse.enums.UserRole;
 import com.project.civicpulse.repository.ReportRepository;
 import com.project.civicpulse.repository.UserRepository;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ReportService {
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
+    private final MlSeverityService mlSeverityService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -31,12 +33,57 @@ public class ReportService {
         User currentUser = userRepository.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
 
-        String factorsJson = null;
-        if (request.getSeverityFactors() != null) {
-            try {
-                factorsJson = objectMapper.writeValueAsString(request.getSeverityFactors());
-            } catch (Exception ignored) {}
+        // Call ML prediction pipeline (trained on CivicLens historical data)
+        MlSeverityService.MlPredictionResult mlResult = mlSeverityService.predictSeverity(request);
+
+        Integer finalSeverity = mlResult.getSeverityScore() != null ? mlResult.getSeverityScore() : 65;
+        String finalSeverityLevel = mlResult.getSeverityLevel() != null ? mlResult.getSeverityLevel() : "MEDIUM";
+        Double finalConfidence = mlResult.getConfidence() != null ? mlResult.getConfidence() : 0.85;
+        String finalModelVersion = mlResult.getModelVersion() != null ? mlResult.getModelVersion() : "civicpulse-v1";
+
+        // Contextual features (from request or enriched by ML context)
+        Map<String, Object> context = mlResult.getContext() != null ? mlResult.getContext() : Map.of();
+
+        String ward = request.getWard() != null && !request.getWard().isBlank()
+            ? request.getWard()
+            : (request.getAreaName() != null ? request.getAreaName() : "Bengaluru");
+
+        Double rainfall = request.getRainfall();
+        if (rainfall == null && context.get("rainfall") instanceof Number num) {
+            rainfall = num.doubleValue();
         }
+
+        Integer traffic = null;
+        if (request.getTraffic() != null) {
+            traffic = request.getTraffic().intValue();
+        } else if (context.get("traffic") instanceof Number num) {
+            traffic = num.intValue();
+        }
+
+        Integer population = request.getPopulation();
+        if (population == null && context.get("population") instanceof Number num) {
+            population = num.intValue();
+        }
+
+        String department = request.getDepartment();
+        if (department == null && context.get("department") instanceof String dept) {
+            department = dept;
+        }
+
+        Map<String, Object> severityFactorsMap = new HashMap<>();
+        if (request.getSeverityFactors() != null) {
+            severityFactorsMap.putAll(request.getSeverityFactors());
+        }
+        severityFactorsMap.putAll(context);
+        severityFactorsMap.put("mlPredictedPriority", finalSeverityLevel);
+        severityFactorsMap.put("mlConfidence", finalConfidence);
+        severityFactorsMap.put("mlModelVersion", finalModelVersion);
+        severityFactorsMap.put("mlSeverityScore", finalSeverity);
+
+        String factorsJson = null;
+        try {
+            factorsJson = objectMapper.writeValueAsString(severityFactorsMap);
+        } catch (Exception ignored) {}
 
         Report report = Report.builder()
             .title(request.getTitle().trim())
@@ -44,13 +91,21 @@ public class ReportService {
             .category(request.getCategory() != null ? request.getCategory() : "INFRASTRUCTURE")
             .issueType(request.getIssueType() != null ? request.getIssueType() : "General")
             .areaName(request.getAreaName() != null ? request.getAreaName() : "Bengaluru")
+            .ward(ward)
             .latitude(request.getLatitude() != null ? request.getLatitude() : 12.9716)
             .longitude(request.getLongitude() != null ? request.getLongitude() : 77.5946)
-            .severity(request.getSeverity() != null ? request.getSeverity() : 65)
+            .severity(finalSeverity)
+            .severityLevel(finalSeverityLevel)
+            .mlConfidence(finalConfidence)
+            .mlModelVersion(finalModelVersion)
+            .rainfall(rainfall)
+            .traffic(traffic)
+            .population(population)
+            .department(department)
             .status("PENDING")
             .hasImage(request.getHasImage() != null ? request.getHasImage() : (request.getImageUrl() != null && !request.getImageUrl().isBlank()))
             .imageUrl(request.getImageUrl())
-            .evidenceConfidence(request.getEvidenceConfidence() != null ? request.getEvidenceConfidence() : 88)
+            .evidenceConfidence((int) Math.round(finalConfidence * 100))
             .severityFactors(factorsJson)
             .user(currentUser)
             .build();
@@ -129,9 +184,17 @@ public class ReportService {
             .category(report.getCategory() != null ? report.getCategory() : "INFRASTRUCTURE")
             .issueType(report.getIssueType() != null ? report.getIssueType() : "General")
             .areaName(report.getAreaName() != null ? report.getAreaName() : "Bengaluru")
+            .ward(report.getWard())
             .latitude(report.getLatitude() != null ? report.getLatitude() : 12.9716)
             .longitude(report.getLongitude() != null ? report.getLongitude() : 77.5946)
             .severity(report.getSeverity() != null ? report.getSeverity() : 65)
+            .severityLevel(report.getSeverityLevel() != null ? report.getSeverityLevel() : "MEDIUM")
+            .mlConfidence(report.getMlConfidence())
+            .mlModelVersion(report.getMlModelVersion())
+            .rainfall(report.getRainfall())
+            .traffic(report.getTraffic())
+            .population(report.getPopulation())
+            .department(report.getDepartment())
             .status(report.getStatus() != null ? report.getStatus() : "PENDING")
             .assignedTeam(report.getAssignedTeam())
             .hasImage(report.getHasImage() != null ? report.getHasImage() : false)

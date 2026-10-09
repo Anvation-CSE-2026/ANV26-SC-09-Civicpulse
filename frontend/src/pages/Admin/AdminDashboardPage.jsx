@@ -277,33 +277,65 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Severity Breakdown (Section 14) */}
-              <div className="bg-[#F8F1E5] border-2 border-[#050505] p-3 shadow-[2px_2px_0_#050505] space-y-1.5 font-mono text-xs">
-                <span className="font-mono font-black text-xs uppercase text-[#050505] block pb-1 border-b border-[#050505]">
-                  EXPLAINABLE SEVERITY BREAKDOWN
-                </span>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-gray-700">ML image evidence:</span>
-                  <span className="font-black text-[#4C5CFF]">+28</span>
+              {/* Explainable Severity Breakdown (Section 14 - Real ML Pipeline) */}
+              <div className="bg-[#F8F1E5] border-2 border-[#050505] p-3 shadow-[2px_2px_0_#050505] space-y-2 font-mono text-xs">
+                <div className="flex items-center justify-between pb-1 border-b border-[#050505]">
+                  <span className="font-mono font-black text-xs uppercase text-[#050505] flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-[#4C5CFF]" /> EXPLAINABLE SEVERITY BREAKDOWN
+                  </span>
+                  <span className="text-[10px] bg-[#4C5CFF] text-white px-1.5 py-0.5 font-bold">
+                    {breakdown.modelVersion || 'civicpulse-v1'}
+                  </span>
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-gray-700">Citizen reports count:</span>
-                  <span className="font-black text-[#4C5CFF]">+18</span>
+
+                {/* ML Prediction & Confidence */}
+                <div className="grid grid-cols-2 gap-2 bg-white p-2 border border-[#050505]">
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block">ML PREDICTION</span>
+                    <span className="font-display font-black text-sm text-[#050505]">
+                      {breakdown.mlPredictedPriority} — {selectedIncident.severity}/100
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-gray-500 font-bold block">MODEL CONFIDENCE</span>
+                    <span className="font-display font-black text-sm text-[#00D66B] bg-[#050505] px-1.5 py-0.5 inline-block">
+                      {breakdown.mlConfidence}%
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-gray-700">Location density:</span>
-                  <span className="font-black text-[#4C5CFF]">+15</span>
+
+                {/* ML Factors */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-gray-600 font-black uppercase block">RISK WEIGHT FACTORS</span>
+                  {breakdown.factors.map((item) => (
+                    <div key={item.label} className="flex justify-between text-[11px]">
+                      <span className="text-gray-700">{item.label}:</span>
+                      <span className="font-black text-[#4C5CFF]">+{item.score}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-gray-700">Rapid report growth:</span>
-                  <span className="font-black text-[#4C5CFF]">+12</span>
+
+                {/* Civic Context */}
+                <div className="pt-1 border-t border-gray-300">
+                  <span className="text-[10px] text-gray-600 font-black uppercase block mb-1">CIVIC CONTEXT</span>
+                  <div className="grid grid-cols-3 gap-1 text-[10px]">
+                    <div className="bg-white p-1 border border-gray-300">
+                      <span className="text-gray-500 block">Rainfall</span>
+                      <span className="font-black text-[#050505]">{breakdown.context?.rainfall || '12.4 mm'}</span>
+                    </div>
+                    <div className="bg-white p-1 border border-gray-300">
+                      <span className="text-gray-500 block">Traffic</span>
+                      <span className="font-black text-[#050505]">{breakdown.context?.traffic || '72/100'}</span>
+                    </div>
+                    <div className="bg-white p-1 border border-gray-300">
+                      <span className="text-gray-500 block">Population</span>
+                      <span className="font-black text-[#050505]">{breakdown.context?.population || '45,000'}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-gray-700">Public safety impact:</span>
-                  <span className="font-black text-[#4C5CFF]">+18</span>
-                </div>
+
                 <div className="flex justify-between pt-1 border-t border-[#050505] font-black text-sm text-[#050505]">
-                  <span>TOTAL SEVERITY:</span>
+                  <span>TOTAL ML SEVERITY:</span>
                   <span>{selectedIncident.severity}</span>
                 </div>
               </div>

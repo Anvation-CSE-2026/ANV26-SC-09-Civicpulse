@@ -219,6 +219,7 @@ export default function CitizenLayout({ tab = 'home' }) {
           showToast('📍 CLICK ANYWHERE ON THE MAP to pick incident location', '#FFD83D');
         }}
         selectedLocation={selectedLocation}
+        onLocationChange={(loc) => setSelectedLocation(loc)}
       />
 
       <IncidentDetailsModal

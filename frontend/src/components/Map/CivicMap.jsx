@@ -12,8 +12,8 @@ function LocationPickerHandler({ isSelectingLocation, onLocationSelected }) {
     click(e) {
       if (isSelectingLocation && onLocationSelected) {
         onLocationSelected({
-          lat: Math.round(e.latlng.lat * 10000) / 10000,
-          lng: Math.round(e.latlng.lng * 10000) / 10000
+          lat: Math.round(e.latlng.lat * 1000000) / 1000000,
+          lng: Math.round(e.latlng.lng * 1000000) / 1000000
         });
       }
     },

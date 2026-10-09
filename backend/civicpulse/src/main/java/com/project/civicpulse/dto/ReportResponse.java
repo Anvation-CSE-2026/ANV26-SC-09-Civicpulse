@@ -24,6 +24,14 @@ public class ReportResponse {
     private Double latitude;
     private Double longitude;
     private Integer severity;
+    private String severityLevel;
+    private Double mlConfidence;
+    private String mlModelVersion;
+    private String ward;
+    private Double rainfall;
+    private Integer traffic;
+    private Integer population;
+    private String department;
     private String status;
     private String assignedTeam;
     private Boolean hasImage;

@@ -1,0 +1,47 @@
+{
+  "accuracy": 0.27141434262948205,
+  "macro_precision": 0.25278355431722854,
+  "macro_recall": 0.25089212203509065,
+  "macro_f1": 0.24518525221582144,
+  "weighted_f1": 0.2832041512861814,
+  "classes": [
+    "CRITICAL",
+    "HIGH",
+    "LOW",
+    "MEDIUM"
+  ],
+  "confusion_matrix": [
+    [
+      28,
+      36,
+      45,
+      51
+    ],
+    [
+      87,
+      114,
+      124,
+      129
+    ],
+    [
+      132,
+      170,
+      181,
+      204
+    ],
+    [
+      134,
+      153,
+      198,
+      222
+    ]
+  ],
+  "total_training_samples": 8032,
+  "total_test_samples": 2008,
+  "class_distribution": {
+    "MEDIUM": 3535,
+    "LOW": 3438,
+    "HIGH": 2268,
+    "CRITICAL": 799
+  }
+}

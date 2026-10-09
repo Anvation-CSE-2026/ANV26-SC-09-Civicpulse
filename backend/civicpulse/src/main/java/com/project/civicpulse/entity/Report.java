@@ -51,6 +51,26 @@ public class Report {
 
     private Integer severity;
 
+    @Column(length = 50)
+    private String severityLevel;
+
+    private Double mlConfidence;
+
+    @Column(length = 50)
+    private String mlModelVersion;
+
+    @Column(length = 100)
+    private String ward;
+
+    private Double rainfall;
+
+    private Integer traffic;
+
+    private Integer population;
+
+    @Column(length = 100)
+    private String department;
+
     @Builder.Default
     @Column(nullable = false, length = 50)
     private String status = "PENDING";
