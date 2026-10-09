@@ -29,6 +29,12 @@ public class AdminSeeder {
     @Value("${app.admin.password:AdminPass123!}")
     private String adminPassword;
 
+    @Value("${app.superadmin.email:superadmin@civicpulse.local}")
+    private String superAdminEmail;
+
+    @Value("${app.superadmin.password:AdminPass123!}")
+    private String superAdminPassword;
+
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seedAdmin() {
@@ -37,21 +43,29 @@ public class AdminSeeder {
             return;
         }
 
-        String normalizedEmail = adminEmail.trim().toLowerCase();
+        // 1. Seed Municipal Admin
+        seedUserIfAbsent("Municipal Administrator", adminEmail, adminPassword, UserRole.ADMIN);
+
+        // 2. Seed System Administrator (SUPER_ADMIN)
+        seedUserIfAbsent("Root System Administrator", superAdminEmail, superAdminPassword, UserRole.SUPER_ADMIN);
+    }
+
+    private void seedUserIfAbsent(String name, String email, String password, UserRole role) {
+        String normalizedEmail = email.trim().toLowerCase();
         if (userRepository.findByEmail(normalizedEmail).isPresent()) {
-            log.info("Admin user already exists with email: {}", normalizedEmail);
+            log.info("{} user already exists with email: {}", role, normalizedEmail);
             return;
         }
 
-        User admin = User.builder()
-            .name("System Administrator")
+        User user = User.builder()
+            .name(name)
             .email(normalizedEmail)
-            .password(passwordEncoder.encode(adminPassword))
-            .role(UserRole.ADMIN)
+            .password(passwordEncoder.encode(password))
+            .role(role)
             .enabled(true)
             .build();
 
-        userRepository.save(admin);
-        log.info("Admin user seeded successfully with email: {}", normalizedEmail);
+        userRepository.save(user);
+        log.info("{} user seeded successfully with email: {}", role, normalizedEmail);
     }
 }

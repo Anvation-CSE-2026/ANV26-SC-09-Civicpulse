@@ -27,7 +27,7 @@ function RoleDashboardRedirect() {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  const isWorker = role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
+  const isWorker = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
   return <Navigate to={isWorker ? '/admin' : '/citizen'} replace />;
 }
 

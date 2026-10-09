@@ -76,19 +76,24 @@ export function IncidentProvider({ children }) {
     if (!token || !isAuthenticated) return;
 
     try {
-      const isAdmin = role === 'ADMIN';
+      const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
       const reports = isAdmin ? await apiService.getAllReports() : await apiService.getMyReports();
       if (Array.isArray(reports)) {
         const mapped = reports.map(mapBackendReportToUi);
         setUserReports(mapped);
 
-        // Merge real backend reports into the incidents view
-        if (mapped.length > 0) {
-          setIncidents(prev => {
-            const mappedIds = new Set(mapped.map(m => String(m.id)));
-            const nonOverlapping = prev.filter(inc => !mappedIds.has(String(inc.id)));
-            return [...mapped, ...nonOverlapping];
-          });
+        if (isAdmin) {
+          // In admin portal, display strictly authorized real backend reports from PostgreSQL
+          setIncidents(mapped);
+        } else {
+          // Citizen portal: show citizen's own reports
+          if (mapped.length > 0) {
+            setIncidents(prev => {
+              const mappedIds = new Set(mapped.map(m => String(m.id)));
+              const nonOverlapping = prev.filter(inc => !mappedIds.has(String(inc.id)));
+              return [...mapped, ...nonOverlapping];
+            });
+          }
         }
       }
     } catch (err) {
@@ -99,12 +104,13 @@ export function IncidentProvider({ children }) {
   useEffect(() => {
     if (!isAuthenticated) {
       setUserReports([]);
+      setIncidents(INITIAL_INCIDENTS);
       return;
     }
 
     fetchReports();
-    // Poll every 4 seconds to sync citizen & admin views across separate browser sessions
-    const interval = setInterval(fetchReports, 4000);
+    // Poll every 3 seconds to sync citizen & admin views across separate browser sessions
+    const interval = setInterval(fetchReports, 3000);
     return () => clearInterval(interval);
   }, [isAuthenticated, role, currentUser]);
 
@@ -189,81 +195,63 @@ export function IncidentProvider({ children }) {
     return { incidentId: newUserReport.id, reportId: newUserReport.id };
   };
 
-  // Dispatch incident team
+  // Dispatch incident team - strictly server-enforced, no optimistic false-success
   const dispatchIncident = async (incidentId, teamName = 'Road Maintenance Unit') => {
-    try {
-      const numericId = Number(incidentId);
-      if (!isNaN(numericId) && numericId > 0) {
-        await apiService.updateReportStatus(numericId, {
-          status: 'IN_PROGRESS',
-          assignedTeam: teamName
-        });
-      }
-    } catch (err) {
-      console.error('Failed to dispatch via backend:', err);
+    const numericId = Number(incidentId);
+    if (!isNaN(numericId) && numericId > 0) {
+      await apiService.updateReportStatus(numericId, {
+        status: 'IN_PROGRESS',
+        assignedTeam: teamName
+      });
+      // Synchronize with PostgreSQL on success
+      await fetchReports();
+    } else {
+      setIncidents(prev => prev.map(inc => {
+        if (String(inc.id) === String(incidentId)) {
+          return {
+            ...inc,
+            status: 'IN PROGRESS',
+            assignedTeam: teamName,
+            updatedAt: 'Just now',
+            timeline: [
+              { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: `${teamName} dispatched to location` },
+              ...(inc.timeline || [])
+            ]
+          };
+        }
+        return inc;
+      }));
     }
-
-    setIncidents(prev => prev.map(inc => {
-      if (String(inc.id) === String(incidentId)) {
-        return {
-          ...inc,
-          status: 'IN PROGRESS',
-          assignedTeam: teamName,
-          updatedAt: 'Just now',
-          timeline: [
-            { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: `${teamName} dispatched to location` },
-            ...(inc.timeline || [])
-          ]
-        };
-      }
-      return inc;
-    }));
-
-    setUserReports(prev => prev.map(rep => {
-      if (String(rep.incidentId) === String(incidentId) || String(rep.id) === String(incidentId)) {
-        return { ...rep, status: 'IN PROGRESS', assignedTeam: teamName, updatesCount: 'DISPATCHED' };
-      }
-      return rep;
-    }));
 
     addActivity(`${teamName} dispatched to Incident #${incidentId}`, 'ADMIN ACTION', '#4C5CFF');
     addNotification('RESOURCE UPDATE', 'TEAM DISPATCHED', `${teamName} assigned to Incident #${incidentId}`, incidentId, '#4C5CFF');
   };
 
-  // Resolve incident
+  // Resolve incident - strictly server-enforced, no optimistic false-success
   const resolveIncident = async (incidentId) => {
-    try {
-      const numericId = Number(incidentId);
-      if (!isNaN(numericId) && numericId > 0) {
-        await apiService.updateReportStatus(numericId, {
-          status: 'RESOLVED'
-        });
-      }
-    } catch (err) {
-      console.error('Failed to resolve via backend:', err);
+    const numericId = Number(incidentId);
+    if (!isNaN(numericId) && numericId > 0) {
+      await apiService.updateReportStatus(numericId, {
+        status: 'RESOLVED'
+      });
+      // Synchronize with PostgreSQL on success
+      await fetchReports();
+    } else {
+      setIncidents(prev => prev.map(inc => {
+        if (String(inc.id) === String(incidentId)) {
+          return {
+            ...inc,
+            status: 'RESOLVED',
+            updatedAt: 'Just now',
+            timeline: [
+              { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: 'Issue resolved & verified by field team' },
+              ...(inc.timeline || [])
+            ]
+          };
+        }
+        return inc;
+      }));
     }
-
-    setIncidents(prev => prev.map(inc => {
-      if (String(inc.id) === String(incidentId)) {
-        return {
-          ...inc,
-          status: 'RESOLVED',
-          updatedAt: 'Just now',
-          timeline: [
-            { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: 'Issue resolved & verified by field team' },
-            ...(inc.timeline || [])
-          ]
-        };
-      }
-      return inc;
-    }));
-
-    setUserReports(prev => prev.map(rep => {
-      if (String(rep.incidentId) === String(incidentId) || String(rep.id) === String(incidentId)) {
-        return { ...rep, status: 'RESOLVED', updatesCount: 'RESOLVED' };
-      }
-      return rep;
-    }));
 
     setAdminStats(prev => ({
       ...prev,
@@ -273,6 +261,26 @@ export function IncidentProvider({ children }) {
 
     addActivity(`Incident #${incidentId} marked as RESOLVED by Field Team`, 'FIELD TEAM', '#00D66B');
     addNotification('STATUS RESOLVED', 'REPORT RESOLVED', `Incident #${incidentId} has been resolved successfully.`, incidentId, '#00D66B');
+  };
+
+  // Claim or assign incident
+  const assignIncident = async (incidentId, adminId) => {
+    const numericId = Number(incidentId);
+    if (!isNaN(numericId) && numericId > 0) {
+      await apiService.assignReport(numericId, adminId);
+      await fetchReports();
+      addActivity(`Incident #${incidentId} assigned to Admin #${adminId || 'current'}`, 'ADMIN DISPATCH', '#4C5CFF');
+    }
+  };
+
+  // Exceptional soft-delete by SUPER_ADMIN
+  const deleteIncident = async (incidentId, reason = 'Administrative removal') => {
+    const numericId = Number(incidentId);
+    if (!isNaN(numericId) && numericId > 0) {
+      await apiService.deleteReport(numericId, reason);
+      await fetchReports();
+      addActivity(`Incident #${incidentId} soft-deleted by Super Admin`, 'AUDIT LOG', '#FF4F87');
+    }
   };
 
   // Resource quantity adjustment
@@ -342,6 +350,8 @@ export function IncidentProvider({ children }) {
         addReport,
         dispatchIncident,
         resolveIncident,
+        assignIncident,
+        deleteIncident,
         refreshReports: fetchReports,
         updateResourceQuantity,
         recalculatePriorities,

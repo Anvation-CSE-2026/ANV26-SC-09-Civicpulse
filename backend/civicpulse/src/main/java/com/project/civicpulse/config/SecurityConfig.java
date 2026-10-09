@@ -56,8 +56,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/reports/**").hasAnyRole("CITIZEN", "ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/admin/reports/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/admin/users/**", "/api/admin/audit-logs/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+                .requestMatchers("/api/reports/**").hasAnyRole("CITIZEN", "ADMIN", "SUPER_ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(securityExceptionHandler)

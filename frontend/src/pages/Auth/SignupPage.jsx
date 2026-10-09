@@ -18,7 +18,7 @@ export default function SignupPage() {
   // If already authenticated, redirect to the appropriate dashboard
   useEffect(() => {
     if (isAuthenticated) {
-      const isWorker = currentRole === 'ADMIN' || currentRole === 'MUNICIPAL' || currentRole === 'MUNICIPAL_WORKER';
+      const isWorker = currentRole === 'ADMIN' || currentRole === 'SUPER_ADMIN' || currentRole === 'MUNICIPAL' || currentRole === 'MUNICIPAL_WORKER';
       navigate(isWorker ? '/admin' : '/citizen', { replace: true });
     }
   }, [isAuthenticated, currentRole, navigate]);
@@ -58,7 +58,7 @@ export default function SignupPage() {
 
       if (res.success) {
         if (res.autoLogin && res.user) {
-          const isWorker = res.user.role === 'ADMIN' || res.user.role === 'MUNICIPAL' || res.user.role === 'MUNICIPAL_WORKER';
+          const isWorker = res.user.role === 'ADMIN' || res.user.role === 'SUPER_ADMIN' || res.user.role === 'MUNICIPAL' || res.user.role === 'MUNICIPAL_WORKER';
           navigate(isWorker ? '/admin' : '/citizen', { replace: true });
         } else {
           navigate('/login', { state: { message: 'Account created successfully. Please login.' } });

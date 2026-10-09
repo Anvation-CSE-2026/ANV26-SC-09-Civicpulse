@@ -5,16 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.civicpulse.dto.CitizenResponse;
 import com.project.civicpulse.dto.ReportRequest;
 import com.project.civicpulse.dto.ReportResponse;
+import com.project.civicpulse.entity.AuditLog;
 import com.project.civicpulse.entity.Report;
 import com.project.civicpulse.entity.User;
 import com.project.civicpulse.enums.UserRole;
+import com.project.civicpulse.repository.AuditLogRepository;
 import com.project.civicpulse.repository.ReportRepository;
 import com.project.civicpulse.repository.UserRepository;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -23,12 +28,16 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReportService {
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
+    private final AuditLogRepository auditLogRepository;
     private final MlSeverityService mlSeverityService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final Set<String> VALID_STATUSES = Set.of("PENDING", "IN_PROGRESS", "RESOLVED", "CANCELLED");
 
     @Transactional
     public ReportResponse createReport(String email, ReportRequest request) {
@@ -110,6 +119,7 @@ public class ReportService {
             .evidenceConfidence((int) Math.round(finalConfidence * 100))
             .severityFactors(factorsJson)
             .user(currentUser)
+            .deleted(false)
             .build();
 
         Report saved = reportRepository.save(report);
@@ -121,15 +131,36 @@ public class ReportService {
         User currentUser = userRepository.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
 
-        return reportRepository.findByUserIdOrderByCreatedAtDesc(currentUser.getId())
+        return reportRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(currentUser.getId())
             .stream()
             .map(this::mapToResponse)
             .toList();
     }
 
     @Transactional(readOnly = true)
+    public List<ReportResponse> getAllReports(String email) {
+        User currentUser = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+        if (currentUser.getRole() == UserRole.CITIZEN) {
+            throw new AccessDeniedException("Citizens cannot access municipal administrative report queues");
+        }
+
+        List<Report> reports;
+        if (currentUser.getRole() == UserRole.SUPER_ADMIN) {
+            // Super Admin has organization-wide visibility
+            reports = reportRepository.findAllByDeletedFalseOrderByCreatedAtDesc();
+        } else {
+            // Municipal Admin is scoped to unassigned incidents + incidents assigned to this admin
+            reports = reportRepository.findActiveReportsForAdmin(currentUser.getId());
+        }
+
+        return reports.stream().map(this::mapToResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<ReportResponse> getAllReports() {
-        return reportRepository.findAllByOrderByCreatedAtDesc().stream().map(this::mapToResponse).toList();
+        return reportRepository.findAllByDeletedFalseOrderByCreatedAtDesc().stream().map(this::mapToResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -137,23 +168,95 @@ public class ReportService {
         User currentUser = userRepository.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
 
-        Report report = reportRepository.findById(reportId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found"));
+        Report report = reportRepository.findByIdAndDeletedFalse(reportId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found with ID: " + reportId));
 
-        if (currentUser.getRole() == UserRole.ADMIN || report.getUser().getId().equals(currentUser.getId())) {
+        if (currentUser.getRole() == UserRole.CITIZEN) {
+            if (!report.getUser().getId().equals(currentUser.getId())) {
+                throw new AccessDeniedException("You do not have permission to access another citizen's report");
+            }
             return mapToResponse(report);
         }
 
-        throw new AccessDeniedException("You do not have permission to access this report");
+        if (currentUser.getRole() == UserRole.ADMIN) {
+            // Admin-to-Admin isolation:
+            // Allowed if unassigned OR assigned to current admin.
+            // Denied if assigned to a different admin.
+            if (report.getAssignedAdmin() != null && !report.getAssignedAdmin().getId().equals(currentUser.getId())) {
+                throw new AccessDeniedException("Incident is restricted to assigned administrator: " + report.getAssignedAdmin().getName());
+            }
+            return mapToResponse(report);
+        }
+
+        if (currentUser.getRole() == UserRole.SUPER_ADMIN) {
+            return mapToResponse(report);
+        }
+
+        throw new AccessDeniedException("Unauthorized role");
     }
 
     @Transactional
-    public ReportResponse updateReportStatus(Long reportId, String status, String assignedTeam) {
-        Report report = reportRepository.findById(reportId)
+    public ReportResponse updateReportStatus(String email, Long reportId, String status, String assignedTeam) {
+        User currentUser = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+        if (currentUser.getRole() == UserRole.CITIZEN) {
+            throw new AccessDeniedException("Citizens cannot modify incident status or dispatch teams");
+        }
+
+        Report report = reportRepository.findByIdAndDeletedFalse(reportId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found with ID: " + reportId));
 
-        if (status != null && !status.isBlank()) {
-            report.setStatus(status.trim().toUpperCase());
+        // Admin-to-admin isolation check:
+        if (currentUser.getRole() == UserRole.ADMIN) {
+            if (report.getAssignedAdmin() != null && !report.getAssignedAdmin().getId().equals(currentUser.getId())) {
+                throw new AccessDeniedException("Cannot update an incident restricted to another administrator");
+            }
+            // Auto-assign to this admin if currently unassigned
+            if (report.getAssignedAdmin() == null) {
+                report.setAssignedAdmin(currentUser);
+            }
+        }
+
+        String normalizedStatus = status != null ? status.trim().toUpperCase() : null;
+        if (normalizedStatus != null) {
+            validateStatusTransition(report.getStatus(), normalizedStatus, currentUser.getRole());
+            report.setStatus(normalizedStatus);
+        }
+
+        if (assignedTeam != null && !assignedTeam.isBlank()) {
+            report.setAssignedTeam(assignedTeam.trim());
+            if (report.getStatus() == null || "PENDING".equalsIgnoreCase(report.getStatus())) {
+                report.setStatus("IN_PROGRESS");
+            }
+        }
+
+        Report saved = reportRepository.save(report);
+
+        // Audit Log entry
+        auditLogRepository.save(AuditLog.builder()
+            .actorEmail(currentUser.getEmail())
+            .actorRole(currentUser.getRole())
+            .action("UPDATE_STATUS")
+            .targetType("REPORT")
+            .targetId(saved.getId())
+            .details("Status: " + saved.getStatus() + ", Team: " + saved.getAssignedTeam())
+            .timestamp(Instant.now())
+            .build());
+
+        return mapToResponse(saved);
+    }
+
+    // Backward-compatible signature
+    @Transactional
+    public ReportResponse updateReportStatus(Long reportId, String status, String assignedTeam) {
+        Report report = reportRepository.findByIdAndDeletedFalse(reportId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found with ID: " + reportId));
+
+        String normalizedStatus = status != null ? status.trim().toUpperCase() : null;
+        if (normalizedStatus != null) {
+            validateStatusTransition(report.getStatus(), normalizedStatus, UserRole.ADMIN);
+            report.setStatus(normalizedStatus);
         }
 
         if (assignedTeam != null && !assignedTeam.isBlank()) {
@@ -165,6 +268,137 @@ public class ReportService {
 
         Report saved = reportRepository.save(report);
         return mapToResponse(saved);
+    }
+
+    @Transactional
+    public ReportResponse assignReport(String email, Long reportId, Long targetAdminId) {
+        User currentUser = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+        if (currentUser.getRole() == UserRole.CITIZEN) {
+            throw new AccessDeniedException("Citizens cannot assign incidents");
+        }
+
+        Report report = reportRepository.findByIdAndDeletedFalse(reportId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found with ID: " + reportId));
+
+        if (currentUser.getRole() == UserRole.ADMIN) {
+            // Municipal admin can only claim unassigned incidents for themselves
+            if (report.getAssignedAdmin() != null && !report.getAssignedAdmin().getId().equals(currentUser.getId())) {
+                throw new AccessDeniedException("Cannot reassign an incident restricted to another administrator");
+            }
+            if (targetAdminId != null && !targetAdminId.equals(currentUser.getId())) {
+                throw new AccessDeniedException("Municipal administrators can only claim incidents for themselves");
+            }
+            report.setAssignedAdmin(currentUser);
+        } else if (currentUser.getRole() == UserRole.SUPER_ADMIN) {
+            if (targetAdminId == null) {
+                report.setAssignedAdmin(null);
+            } else {
+                User targetAdmin = userRepository.findById(targetAdminId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target administrator not found"));
+                if (targetAdmin.getRole() != UserRole.ADMIN && targetAdmin.getRole() != UserRole.SUPER_ADMIN) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot assign incident to non-administrator");
+                }
+                report.setAssignedAdmin(targetAdmin);
+            }
+        }
+
+        Report saved = reportRepository.save(report);
+
+        auditLogRepository.save(AuditLog.builder()
+            .actorEmail(currentUser.getEmail())
+            .actorRole(currentUser.getRole())
+            .action("ASSIGN_INCIDENT")
+            .targetType("REPORT")
+            .targetId(saved.getId())
+            .details("Assigned to: " + (saved.getAssignedAdmin() != null ? saved.getAssignedAdmin().getEmail() : "UNASSIGNED"))
+            .timestamp(Instant.now())
+            .build());
+
+        return mapToResponse(saved);
+    }
+
+    @Transactional
+    public void softDeleteReport(String email, Long reportId, String reason) {
+        User currentUser = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+        if (currentUser.getRole() != UserRole.SUPER_ADMIN) {
+            throw new AccessDeniedException("Permanent or administrative report deletion requires SUPER_ADMIN role");
+        }
+
+        Report report = reportRepository.findById(reportId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found with ID: " + reportId));
+
+        if (report.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Report is already deleted");
+        }
+
+        report.setDeleted(true);
+        report.setDeletedAt(Instant.now());
+        report.setDeletedBy(currentUser.getEmail());
+        report.setDeleteReason(reason != null && !reason.isBlank() ? reason.trim() : "Super Admin exceptional removal");
+
+        reportRepository.save(report);
+
+        auditLogRepository.save(AuditLog.builder()
+            .actorEmail(currentUser.getEmail())
+            .actorRole(currentUser.getRole())
+            .action("DELETE_REPORT")
+            .targetType("REPORT")
+            .targetId(report.getId())
+            .details("Reason: " + report.getDeleteReason())
+            .timestamp(Instant.now())
+            .build());
+
+        log.info("SUPER_ADMIN {} soft-deleted report ID={} reason='{}'", currentUser.getEmail(), reportId, report.getDeleteReason());
+    }
+
+    private void validateStatusTransition(String currentStatus, String targetStatus, UserRole actorRole) {
+        if (!VALID_STATUSES.contains(targetStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status: " + targetStatus + ". Allowed: " + VALID_STATUSES);
+        }
+
+        if (currentStatus != null && currentStatus.equalsIgnoreCase(targetStatus)) {
+            return;
+        }
+
+        if ("RESOLVED".equalsIgnoreCase(currentStatus) && actorRole != UserRole.SUPER_ADMIN) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot alter status of already RESOLVED report. Contact SUPER_ADMIN.");
+        }
+
+        if ("CANCELLED".equalsIgnoreCase(currentStatus) && actorRole != UserRole.SUPER_ADMIN) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot alter status of CANCELLED report. Contact SUPER_ADMIN.");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<CitizenResponse> getCitizens() {
+        List<User> citizens = userRepository.findByRoleOrderByIdAsc(UserRole.CITIZEN);
+        return citizens.stream().map(user -> {
+            long reportCount = reportRepository.countByUserIdAndDeletedFalse(user.getId());
+            String residentialWard = "Not specified";
+            Optional<Report> latestReport = reportRepository.findFirstByUserIdAndDeletedFalseOrderByCreatedAtDesc(user.getId());
+            if (latestReport.isPresent()) {
+                Report rep = latestReport.get();
+                if (rep.getAreaName() != null && !rep.getAreaName().isBlank()) {
+                    residentialWard = rep.getAreaName().trim();
+                } else if (rep.getWard() != null && !rep.getWard().isBlank()) {
+                    residentialWard = rep.getWard().trim();
+                }
+            }
+
+            return CitizenResponse.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .role(user.getRole() != null ? user.getRole().name() : "CITIZEN")
+                .reportCount(reportCount)
+                .civicPoints(0)
+                .residentialWard(residentialWard)
+                .build();
+        }).toList();
     }
 
     private ReportResponse mapToResponse(Report report) {
@@ -205,35 +439,11 @@ public class ReportService {
             .severityFactors(factors)
             .userId(report.getUser().getId())
             .userName(report.getUser().getName())
+            .assignedAdminId(report.getAssignedAdmin() != null ? report.getAssignedAdmin().getId() : null)
+            .assignedAdminName(report.getAssignedAdmin() != null ? report.getAssignedAdmin().getName() : null)
+            .assignedAdminEmail(report.getAssignedAdmin() != null ? report.getAssignedAdmin().getEmail() : null)
+            .deleted(report.isDeleted())
             .createdAt(report.getCreatedAt())
             .build();
-    }
-
-    @Transactional(readOnly = true)
-    public List<CitizenResponse> getCitizens() {
-        List<User> citizens = userRepository.findByRoleOrderByIdAsc(UserRole.CITIZEN);
-        return citizens.stream().map(user -> {
-            long reportCount = reportRepository.countByUserId(user.getId());
-            String residentialWard = "Not specified";
-            Optional<Report> latestReport = reportRepository.findFirstByUserIdOrderByCreatedAtDesc(user.getId());
-            if (latestReport.isPresent()) {
-                Report rep = latestReport.get();
-                if (rep.getAreaName() != null && !rep.getAreaName().isBlank()) {
-                    residentialWard = rep.getAreaName().trim();
-                } else if (rep.getWard() != null && !rep.getWard().isBlank()) {
-                    residentialWard = rep.getWard().trim();
-                }
-            }
-
-            return CitizenResponse.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
-                .role(user.getRole() != null ? user.getRole().name() : "CITIZEN")
-                .reportCount(reportCount)
-                .civicPoints(0)
-                .residentialWard(residentialWard)
-                .build();
-        }).toList();
     }
 }

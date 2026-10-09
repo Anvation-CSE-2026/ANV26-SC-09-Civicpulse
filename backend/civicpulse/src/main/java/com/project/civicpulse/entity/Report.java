@@ -89,6 +89,22 @@ public class Report {
     @Column(length = 150)
     private String assignedTeam;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_admin_id")
+    private User assignedAdmin;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    private Instant deletedAt;
+
+    @Column(length = 150)
+    private String deletedBy;
+
+    @Column(columnDefinition = "TEXT")
+    private String deleteReason;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

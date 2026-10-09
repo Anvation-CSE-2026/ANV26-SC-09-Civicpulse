@@ -2,5 +2,6 @@ package com.project.civicpulse.enums;
 
 public enum UserRole {
     CITIZEN,
-    ADMIN
+    ADMIN,
+    SUPER_ADMIN
 }

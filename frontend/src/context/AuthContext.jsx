@@ -23,14 +23,25 @@ export const DEMO_ACCOUNTS = {
     ward: "BBMP South Command Center",
     initials: "AD",
     level: "MUNICIPAL CONTROL OFFICER"
+  },
+  SUPER_ADMIN: {
+    id: "USR-000",
+    name: "System Super Administrator",
+    email: "superadmin@civicpulse.local",
+    password: "AdminPass123!",
+    role: "SUPER_ADMIN",
+    ward: "State Municipal Command HQ",
+    initials: "SA",
+    level: "CHIEF SUPERVISORY ADMINISTRATOR"
   }
 };
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const savedUser = localStorage.getItem('civicpulse_user');
-      const savedToken = localStorage.getItem('civicpulse_token');
+      // Prioritize tab-scoped sessionStorage to support independent multi-account tabs
+      const savedUser = sessionStorage.getItem('civicpulse_user') || localStorage.getItem('civicpulse_user');
+      const savedToken = sessionStorage.getItem('civicpulse_token') || localStorage.getItem('civicpulse_token');
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
         if (savedToken && !parsed.token) {
@@ -49,8 +60,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (currentUser) {
+      sessionStorage.setItem('civicpulse_user', JSON.stringify(currentUser));
       localStorage.setItem('civicpulse_user', JSON.stringify(currentUser));
       if (currentUser.token) {
+        sessionStorage.setItem('civicpulse_token', currentUser.token);
         localStorage.setItem('civicpulse_token', currentUser.token);
       }
     }
@@ -68,20 +81,23 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       const authResponse = await apiService.login(email.trim(), password);
-      const isWorker = authResponse.role === 'ADMIN' || authResponse.role === 'MUNICIPAL' || authResponse.role === 'MUNICIPAL_WORKER';
+      const isSuper = authResponse.role === 'SUPER_ADMIN';
+      const isWorker = authResponse.role === 'ADMIN' || isSuper || authResponse.role === 'MUNICIPAL' || authResponse.role === 'MUNICIPAL_WORKER';
       const user = {
         id: authResponse.userId,
         name: authResponse.name,
         email: authResponse.email,
-        role: authResponse.role, // "CITIZEN", "ADMIN", etc.
+        role: authResponse.role, // "CITIZEN", "ADMIN", "SUPER_ADMIN"
         token: authResponse.token,
         tokenType: authResponse.tokenType || "Bearer",
         initials: (authResponse.name || 'CP').substring(0, 2).toUpperCase(),
-        level: isWorker ? 'MUNICIPAL CONTROL OFFICER' : 'LEVEL 4 CIVIC GUARDIAN',
-        ward: isWorker ? 'BBMP Command Center' : 'Bengaluru Urban Ward'
+        level: isSuper ? 'CHIEF SUPERVISORY ADMINISTRATOR' : (isWorker ? 'MUNICIPAL CONTROL OFFICER' : 'LEVEL 4 CIVIC GUARDIAN'),
+        ward: isSuper ? 'State Municipal Command HQ' : (isWorker ? 'BBMP Command Center' : 'Bengaluru Urban Ward')
       };
 
       setCurrentUser(user);
+      sessionStorage.setItem('civicpulse_token', authResponse.token);
+      sessionStorage.setItem('civicpulse_user', JSON.stringify(user));
       localStorage.setItem('civicpulse_token', authResponse.token);
       localStorage.setItem('civicpulse_user', JSON.stringify(user));
       return { success: true, user };
@@ -92,19 +108,18 @@ export function AuthProvider({ children }) {
 
   const signup = async (formData) => {
     try {
-      const requestedRole = formData.role === 'MUNICIPAL_WORKER' || formData.role === 'MUNICIPAL' ? 'ADMIN' : (formData.role || 'CITIZEN');
+      // Backend strictly forces CITIZEN for public registration to prevent privilege escalation
       const registerData = {
         name: (formData.fullName || formData.name || '').trim(),
         email: (formData.email || '').trim(),
         password: formData.password,
-        role: requestedRole
+        role: 'CITIZEN'
       };
       const authResponse = await apiService.register(registerData);
 
       // Backend returns full AuthResponse with JWT
       if (authResponse?.token) {
-        const userRole = authResponse.role || requestedRole;
-        const isWorker = userRole === 'ADMIN' || userRole === 'MUNICIPAL' || userRole === 'MUNICIPAL_WORKER';
+        const userRole = authResponse.role || 'CITIZEN';
         const user = {
           id: authResponse.userId,
           name: authResponse.name || registerData.name,
@@ -113,11 +128,13 @@ export function AuthProvider({ children }) {
           token: authResponse.token,
           tokenType: authResponse.tokenType || "Bearer",
           initials: (authResponse.name || registerData.name || 'CP').substring(0, 2).toUpperCase(),
-          level: isWorker ? 'MUNICIPAL CONTROL OFFICER' : 'LEVEL 4 CIVIC GUARDIAN',
-          ward: isWorker ? 'BBMP Command Center' : 'Bengaluru Urban Ward'
+          level: 'LEVEL 4 CIVIC GUARDIAN',
+          ward: 'Bengaluru Urban Ward'
         };
 
         setCurrentUser(user);
+        sessionStorage.setItem('civicpulse_token', authResponse.token);
+        sessionStorage.setItem('civicpulse_user', JSON.stringify(user));
         localStorage.setItem('civicpulse_token', authResponse.token);
         localStorage.setItem('civicpulse_user', JSON.stringify(user));
         return { success: true, user, autoLogin: true };
@@ -135,7 +152,11 @@ export function AuthProvider({ children }) {
   };
 
   const quickDemoLogin = async (accountRole) => {
-    if (accountRole === 'MUNICIPAL_WORKER' || accountRole === 'ADMIN' || accountRole === 'MUNICIPAL') {
+    if (accountRole === 'SUPER_ADMIN') {
+      const res = await login('superadmin@civicpulse.local', 'AdminPass123!');
+      if (res.success) return res.user;
+      throw new Error(res.error || 'Super Admin login failed');
+    } else if (accountRole === 'MUNICIPAL_WORKER' || accountRole === 'ADMIN' || accountRole === 'MUNICIPAL') {
       const res = await login('admin@civicpulse.local', 'AdminPass123!');
       if (res.success) return res.user;
       throw new Error(res.error || 'Admin login failed');

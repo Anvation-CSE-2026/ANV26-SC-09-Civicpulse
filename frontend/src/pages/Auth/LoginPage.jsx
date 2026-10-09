@@ -17,7 +17,7 @@ export default function LoginPage() {
   // If already authenticated, redirect to appropriate dashboard immediately
   useEffect(() => {
     if (isAuthenticated) {
-      const isWorker = role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
+      const isWorker = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
       navigate(isWorker ? '/admin' : '/citizen', { replace: true });
     }
   }, [isAuthenticated, role, navigate]);
@@ -27,6 +27,9 @@ export default function LoginPage() {
     if (roleName === 'CITIZEN') {
       setEmail('jane.citizen@example.com');
       setPassword('CitizenPass123!');
+    } else if (roleName === 'SUPER_ADMIN') {
+      setEmail('superadmin@civicpulse.local');
+      setPassword('AdminPass123!');
     } else {
       setEmail('admin@civicpulse.local');
       setPassword('AdminPass123!');
@@ -44,7 +47,7 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       if (res.success) {
-        const isWorker = res.user.role === 'ADMIN' || res.user.role === 'MUNICIPAL_WORKER' || res.user.role === 'MUNICIPAL';
+        const isWorker = res.user.role === 'ADMIN' || res.user.role === 'SUPER_ADMIN' || res.user.role === 'MUNICIPAL_WORKER' || res.user.role === 'MUNICIPAL';
         navigate(isWorker ? '/admin' : '/citizen', { replace: true });
       } else {
         setErrorMessage(res.error || 'Invalid email or password.');
@@ -59,7 +62,7 @@ export default function LoginPage() {
     try {
       const user = await quickDemoLogin(targetRole);
       if (user) {
-        const isWorker = user.role === 'ADMIN' || user.role === 'MUNICIPAL_WORKER' || user.role === 'MUNICIPAL';
+        const isWorker = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'MUNICIPAL_WORKER' || user.role === 'MUNICIPAL';
         navigate(isWorker ? '/admin' : '/citizen', { replace: true });
       }
     } catch (err) {
@@ -129,6 +132,14 @@ export default function LoginPage() {
                 className="py-2 px-2.5 bg-[#4C5CFF] text-white border-2 border-[#050505] shadow-[2px_2px_0_#050505] font-display font-black text-[11px] uppercase hover:bg-[#3848e8] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-1"
               >
                 <span>LOGIN AS WORKER</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('SUPER_ADMIN')}
+                className="py-2 px-2.5 bg-[#FFD83D] text-[#050505] border-2 border-[#050505] shadow-[2px_2px_0_#050505] font-display font-black text-[11px] uppercase hover:bg-[#e6c125] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-1 sm:col-span-2"
+              >
+                <span>⚡ LOGIN AS SUPER ADMIN (SYSTEM ROOT)</span>
               </button>
             </div>
           </div>

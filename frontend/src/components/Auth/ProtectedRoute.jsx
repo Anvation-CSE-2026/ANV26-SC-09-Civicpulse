@@ -9,11 +9,11 @@ export default function ProtectedRoute({ children, role: requiredRole }) {
     return <Navigate to="/login" replace />;
   }
 
-  const isAdmin = role === 'ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'MUNICIPAL_WORKER' || role === 'MUNICIPAL';
   const isCitizen = role === 'CITIZEN';
 
   if (requiredRole) {
-    const requiresAdmin = requiredRole === 'ADMIN' || requiredRole === 'MUNICIPAL_WORKER' || requiredRole === 'MUNICIPAL';
+    const requiresAdmin = requiredRole === 'ADMIN' || requiredRole === 'SUPER_ADMIN' || requiredRole === 'MUNICIPAL_WORKER' || requiredRole === 'MUNICIPAL';
     const requiresCitizen = requiredRole === 'CITIZEN';
 
     if (requiresAdmin && !isAdmin) {

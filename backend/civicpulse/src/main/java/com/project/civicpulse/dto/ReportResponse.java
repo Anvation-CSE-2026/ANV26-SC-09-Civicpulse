@@ -40,5 +40,9 @@ public class ReportResponse {
     private Map<String, Object> severityFactors;
     private Long userId;
     private String userName;
+    private Long assignedAdminId;
+    private String assignedAdminName;
+    private String assignedAdminEmail;
+    private Boolean deleted;
     private Instant createdAt;
 }

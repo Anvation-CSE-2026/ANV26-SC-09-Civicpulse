@@ -7,19 +7,24 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+// Multi-tab session isolation: read from tab's sessionStorage first, fallback to localStorage
 export function getStoredToken() {
-  return localStorage.getItem('civicpulse_token') || null;
+  return sessionStorage.getItem('civicpulse_token') || localStorage.getItem('civicpulse_token') || null;
 }
 
 export function setStoredToken(token) {
   if (token) {
+    sessionStorage.setItem('civicpulse_token', token);
     localStorage.setItem('civicpulse_token', token);
   } else {
+    sessionStorage.removeItem('civicpulse_token');
     localStorage.removeItem('civicpulse_token');
   }
 }
 
 export function clearStoredAuth() {
+  sessionStorage.removeItem('civicpulse_token');
+  sessionStorage.removeItem('civicpulse_user');
   localStorage.removeItem('civicpulse_token');
   localStorage.removeItem('civicpulse_user');
 }
@@ -62,8 +67,13 @@ export async function request(endpoint, options = {}) {
   }
 
   if (response.status === 403) {
-    console.error(`[API 403] ${endpoint}: Access Denied`);
-    throw new Error('You are not authorized to perform this action.');
+    let forbiddenMsg = 'You are not authorized to perform this action.';
+    try {
+      const errorJson = await response.json();
+      forbiddenMsg = errorJson.message || errorJson.error || forbiddenMsg;
+    } catch (_) {}
+    console.error(`[API 403] ${endpoint}: Access Denied:`, forbiddenMsg);
+    throw new Error(forbiddenMsg);
   }
 
   if (response.status === 500) {
@@ -151,10 +161,57 @@ export const apiService = {
     });
   },
 
+  async getReportDetails(id) {
+    return request(`/admin/reports/${id}`, {
+      method: 'GET'
+    });
+  },
+
   async updateReportStatus(id, updateData) {
     return request(`/admin/reports/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify(updateData)
+    });
+  },
+
+  async assignReport(id, targetAdminId = null) {
+    return request(`/admin/reports/${id}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify(targetAdminId != null ? { adminId: targetAdminId } : {})
+    });
+  },
+
+  // Super Admin exceptional operations
+  async deleteReport(id, reason = 'Super Admin removal') {
+    return request(`/admin/reports/${id}?reason=${encodeURIComponent(reason)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async provisionAdmin(provisionData) {
+    return request('/admin/users/provision', {
+      method: 'POST',
+      body: JSON.stringify(provisionData)
+    });
+  },
+
+  async getUsers(role = null) {
+    const query = role ? `?role=${role}` : '';
+    return request(`/admin/users${query}`, {
+      method: 'GET'
+    });
+  },
+
+  async updateUserStatus(id, enabled) {
+    return request(`/admin/users/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled })
+    });
+  },
+
+  async getAuditLogs() {
+    return request('/admin/audit-logs', {
+      method: 'GET'
     });
   },
 
