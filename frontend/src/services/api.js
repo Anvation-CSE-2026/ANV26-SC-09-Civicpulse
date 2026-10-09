@@ -139,6 +139,12 @@ export const apiService = {
   },
 
   // Admin
+  async getCitizens() {
+    return request('/admin/citizens', {
+      method: 'GET'
+    });
+  },
+
   async getAllReports() {
     return request('/admin/reports', {
       method: 'GET'

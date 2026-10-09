@@ -1,5 +1,6 @@
 package com.project.civicpulse.controller;
 
+import com.project.civicpulse.dto.CitizenResponse;
 import com.project.civicpulse.dto.ReportResponse;
 import com.project.civicpulse.service.ReportService;
 import java.util.List;
@@ -23,6 +24,11 @@ public class AdminController {
 
     public AdminController(ReportService reportService) {
         this.reportService = reportService;
+    }
+
+    @GetMapping("/citizens")
+    public ResponseEntity<List<CitizenResponse>> getCitizens() {
+        return ResponseEntity.ok(reportService.getCitizens());
     }
 
     @GetMapping("/reports")

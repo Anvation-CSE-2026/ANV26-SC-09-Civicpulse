@@ -2,6 +2,7 @@ package com.project.civicpulse.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.civicpulse.dto.CitizenResponse;
 import com.project.civicpulse.dto.ReportRequest;
 import com.project.civicpulse.dto.ReportResponse;
 import com.project.civicpulse.entity.Report;
@@ -12,6 +13,7 @@ import com.project.civicpulse.repository.UserRepository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -205,5 +207,33 @@ public class ReportService {
             .userName(report.getUser().getName())
             .createdAt(report.getCreatedAt())
             .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CitizenResponse> getCitizens() {
+        List<User> citizens = userRepository.findByRoleOrderByIdAsc(UserRole.CITIZEN);
+        return citizens.stream().map(user -> {
+            long reportCount = reportRepository.countByUserId(user.getId());
+            String residentialWard = "Not specified";
+            Optional<Report> latestReport = reportRepository.findFirstByUserIdOrderByCreatedAtDesc(user.getId());
+            if (latestReport.isPresent()) {
+                Report rep = latestReport.get();
+                if (rep.getAreaName() != null && !rep.getAreaName().isBlank()) {
+                    residentialWard = rep.getAreaName().trim();
+                } else if (rep.getWard() != null && !rep.getWard().isBlank()) {
+                    residentialWard = rep.getWard().trim();
+                }
+            }
+
+            return CitizenResponse.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .role(user.getRole() != null ? user.getRole().name() : "CITIZEN")
+                .reportCount(reportCount)
+                .civicPoints(0)
+                .residentialWard(residentialWard)
+                .build();
+        }).toList();
     }
 }
